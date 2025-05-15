@@ -12,39 +12,35 @@ app.get('/compress', async (req, res) => {
   try {
     // Step 1: Download gambar asli
     const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-    const originalBuffer = Buffer.from(response.data);
+    let buffer = Buffer.from(response.data);
 
-    // Step 2: Kompresi agresif dengan prioritas ≤50KB
-    let quality = 80; // Mulai dari kualitas tinggi
-    let width = null;
+    // Step 2: Kompresi 3 tahap dengan pengaturan agresif
+    const compressionSettings = [
+      { quality: 70, width: 1200 },  // Coba kompresi ringan
+      { quality: 40, width: 800 },   // Kompresi medium
+      { quality: 20, width: 600 }    // Kompresi ekstrem
+    ];
+
     let outputBuffer;
-    let attempts = 0;
-
-    do {
-      const transformer = sharp(originalBuffer)
-        .resize(width) // Resize hanya jika width ditentukan
+    
+    for (const setting of compressionSettings) {
+      outputBuffer = await sharp(buffer)
+        .resize(setting.width)
         .jpeg({ 
-          quality,
-          mozjpeg: true, // Kompresi maksimal
-          force: true // Paksa konversi ke JPEG bahkan untuk PNG
-        });
+          quality: setting.quality,
+          mozjpeg: true,
+          force: true // Paksa konversi ke JPEG
+        })
+        .toBuffer();
 
-      outputBuffer = await transformer.toBuffer();
-      
-      // Turunkan kualitas/resolusi bertahap jika masih >50KB
-      if (outputBuffer.length > MAX_SIZE_KB * 1024) {
-        quality -= 15;
-        if (quality <= 50) width = 1000; // Resize lebar jadi 1000px jika kualitas ≤50%
-      }
+      if (outputBuffer.length <= MAX_SIZE_KB * 1024) break;
+    }
 
-      attempts++;
-    } while (outputBuffer.length > MAX_SIZE_KB * 1024 && attempts < 5); // Maksimal 5 percobaan
-
-    // Step 3: Jika masih >50KB, kompresi ekstrem (last resort)
+    // Step 3: Jika masih >50KB, lakukan kompresi maksimal
     if (outputBuffer.length > MAX_SIZE_KB * 1024) {
-      outputBuffer = await sharp(originalBuffer)
-        .resize(800) // Paksa resize kecil
-        .jpeg({ quality: 30, mozjpeg: true })
+      outputBuffer = await sharp(buffer)
+        .resize(500)
+        .jpeg({ quality: 15, mozjpeg: true })
         .toBuffer();
     }
 
