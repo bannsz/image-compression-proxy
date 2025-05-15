@@ -1,4 +1,3 @@
-// Ganti seluruh isi file index.js dengan ini:
 const express = require('express');
 const axios = require('axios');
 const sharp = require('sharp');
@@ -8,44 +7,54 @@ const MAX_SIZE_KB = 50; // Target maksimal 50KB
 
 app.get('/compress', async (req, res) => {
   const imageUrl = req.query.url;
-  if (!imageUrl) {
-    return res.status(400).send('Missing image URL');
-  }
+  if (!imageUrl) return res.status(400).send('Missing URL');
 
   try {
+    // Step 1: Download gambar asli
     const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-    let imageBuffer = Buffer.from(response.data);
-    let compressedBuffer;
-    let quality = 70; // Mulai dari kualitas 70%
-    let width = null; // Tidak resize awal
+    const originalBuffer = Buffer.from(response.data);
 
-    // Loop hingga ukuran ≤50KB atau kualitas terlalu rendah
-    while (quality >= 10) {
-      const transformer = sharp(imageBuffer)
-        .jpeg({ quality })
-        .resize(width); 
+    // Step 2: Kompresi agresif dengan prioritas ≤50KB
+    let quality = 80; // Mulai dari kualitas tinggi
+    let width = null;
+    let outputBuffer;
+    let attempts = 0;
 
-      compressedBuffer = await transformer.toBuffer();
+    do {
+      const transformer = sharp(originalBuffer)
+        .resize(width) // Resize hanya jika width ditentukan
+        .jpeg({ 
+          quality,
+          mozjpeg: true, // Kompresi maksimal
+          force: true // Paksa konversi ke JPEG bahkan untuk PNG
+        });
+
+      outputBuffer = await transformer.toBuffer();
       
-      if (compressedBuffer.length <= MAX_SIZE_KB * 1024) {
-        break; // Berhenti jika sudah ≤50KB
+      // Turunkan kualitas/resolusi bertahap jika masih >50KB
+      if (outputBuffer.length > MAX_SIZE_KB * 1024) {
+        quality -= 15;
+        if (quality <= 50) width = 1000; // Resize lebar jadi 1000px jika kualitas ≤50%
       }
 
-      // Turunkan kualitas 10% dan resize jika perlu
-      quality -= 10;
-      if (quality <= 30) {
-        width = 800; // Resize lebar jadi 800px jika kualitas ≤30%
-      }
+      attempts++;
+    } while (outputBuffer.length > MAX_SIZE_KB * 1024 && attempts < 5); // Maksimal 5 percobaan
+
+    // Step 3: Jika masih >50KB, kompresi ekstrem (last resort)
+    if (outputBuffer.length > MAX_SIZE_KB * 1024) {
+      outputBuffer = await sharp(originalBuffer)
+        .resize(800) // Paksa resize kecil
+        .jpeg({ quality: 30, mozjpeg: true })
+        .toBuffer();
     }
 
     res.set('Content-Type', 'image/jpeg');
-    res.send(compressedBuffer);
+    res.send(outputBuffer);
   } catch (error) {
-    res.status(500).send('Error: ' + error.message);
+    console.error('Error:', error);
+    res.status(500).send('Compression failed');
   }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
