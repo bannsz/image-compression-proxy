@@ -9,7 +9,8 @@ app.get('/proxy', async (req, res) => {
   const { url, quality = 40, width = 400 } = req.query;
 
   if (!url) {
-    return res.status(400).send('Missing image URL')  }
+    return res.status(400).send('Missing image URL');
+  }
 
   try {
     const response = await axios({
@@ -27,7 +28,8 @@ app.get('/proxy', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).send('Error processing image');
-K});
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`Image compression proxy running on port ${PORT}`);
