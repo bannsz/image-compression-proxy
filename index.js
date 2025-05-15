@@ -1,34 +1,31 @@
 const express = require('express');
-const fetch = require('node-fetch');
+const axios = require('axios');
 const sharp = require('sharp');
 
 const app = express();
 
 app.get('/proxy', async (req, res) => {
   const imageUrl = req.query.url;
-  const mode = req.query.mode || 'default'; // tambahkan mode
+  const mode = req.query.mode || 'default';
   if (!imageUrl) {
     return res.status(400).send('Missing image URL');
   }
 
   try {
-    const response = await fetch(imageUrl);
-    const imageBuffer = await response.buffer();
+    const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+    const imageBuffer = Buffer.from(response.data);
 
     let transformer = sharp(imageBuffer);
 
     if (mode === 'low') {
-      // preset untuk gambar <50KB
       transformer = transformer
         .resize({ width: 300 })
         .jpeg({ quality: 20 });
     } else if (mode === 'medium') {
-      // preset biasa (jika ingin dipakai juga)
       transformer = transformer
         .resize({ width: 600 })
         .jpeg({ quality: 35 });
     } else {
-      // default: hanya ubah ke jpeg tanpa resize
       transformer = transformer
         .jpeg({ quality: 70 });
     }
