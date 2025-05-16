@@ -5,6 +5,7 @@ const app = express();
 
 const port = process.env.PORT || 3000;
 
+// Endpoint utama untuk kompresi gambar
 app.get("/image", async (req, res) => {
   const { url, webp, quality = 60 } = req.query;
 
@@ -29,6 +30,11 @@ app.get("/image", async (req, res) => {
     console.error("Image processing error:", err.message);
     res.status(500).send("Image compression failed");
   }
+});
+
+// Tambahkan endpoint /health agar ekstensi Bandwidth Hero bisa memverifikasi
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
 });
 
 app.listen(port, () => {
