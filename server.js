@@ -1,72 +1,36 @@
-const express = require('express');
-const cors = require('cors');
-const axios = require('axios');
-const sharp = require('sharp');
+const express = require("express");
+const sharp = require("sharp");
+const axios = require("axios");
 
 const app = express();
-const MAX_SIZE_KB = 50;
+const port = process.env.PORT || 3000;
 
-// Konfigurasi CORS middleware
-app.use(cors({
-  origin: '*',
-  methods: 'GET',
-  optionsSuccessStatus: 200
-}));
-
-app.get('/compress', async (req, res) => {
+app.get("/", async (req, res) => {
   const imageUrl = req.query.url;
-  if (!imageUrl) return res.status(400).send('Missing URL');
+  if (!imageUrl) {
+    return res.status(400).send("Missing 'url' parameter");
+  }
 
   try {
-    // Step 1: Download gambar asli dengan header tambahan
     const response = await axios.get(imageUrl, {
-      responseType: 'arraybuffer',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-        'Accept': 'image/*'
-      }
+      responseType: "arraybuffer",
     });
-    let buffer = Buffer.from(response.data);
 
-    // Step 2: Kompresi 3 tahap
-    const compressionSettings = [
-      { quality: 70, width: 1200 },
-      { quality: 40, width: 800 },
-      { quality: 20, width: 600 }
-    ];
+    const imageBuffer = Buffer.from(response.data);
 
-    let outputBuffer;
+    // Kompres ke WebP (bisa ganti ke .jpeg juga kalau mau)
+    const compressedImage = await sharp(imageBuffer)
+      .webp({ quality: 50 }) // Ganti kualitas di sini sesuai keinginan
+      .toBuffer();
 
-    for (const setting of compressionSettings) {
-      outputBuffer = await sharp(buffer)
-        .resize(setting.width)
-        .jpeg({
-          quality: setting.quality,
-          mozjpeg: true,
-          force: true
-        })
-        .toBuffer();
-
-      if (outputBuffer.length <= MAX_SIZE_KB * 1024) break;
-    }
-
-    // Step 3: Kompresi ekstra jika masih besar
-    if (outputBuffer.length > MAX_SIZE_KB * 1024) {
-      outputBuffer = await sharp(buffer)
-        .resize(500)
-        .jpeg({ quality: 15, mozjpeg: true })
-        .toBuffer();
-    }
-
-    // Tambahkan header tambahan untuk CORS
-    res.header('Cross-Origin-Resource-Policy', 'cross-origin');
-    res.set('Content-Type', 'image/jpeg');
-    res.send(outputBuffer);
+    res.set("Content-Type", "image/webp");
+    res.send(compressedImage);
   } catch (error) {
-    console.error('Error:', error);
-    res.status(500).send('Compression failed');
+    console.error("Compression error:", error.message);
+    res.status(500).send("Image compression failed");
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(port, () => {
+  console.log(`Server listening on port ${port}`);
+});
